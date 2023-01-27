@@ -18,6 +18,12 @@ public class Person implements Serializable {
         this.destinationFloor = destination;
     }
 
+    //For debugging. Creates a person defined start and finish floores
+    public Person(int start, int finish) {
+        this.originalFloor = start;
+        this.destinationFloor = finish;
+    }
+
     public int getDestinationFloor() {
         return this.destinationFloor;
     }

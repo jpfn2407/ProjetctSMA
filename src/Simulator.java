@@ -2,6 +2,7 @@ import jade.Boot;
 import jade.core.AID;
 import jade.core.Agent;
 import jade.core.behaviours.CyclicBehaviour;
+import jade.core.behaviours.ThreadedBehaviourFactory;
 import jade.core.behaviours.TickerBehaviour;
 import jade.domain.DFService;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Simulator extends Agent {
+    private ThreadedBehaviourFactory tbf = new ThreadedBehaviourFactory();
 
     private static int nFloors = 10; // Number of floors in the building
     private static int nElevators = 1; // Number of elevators to simulate
@@ -76,16 +78,14 @@ public class Simulator extends Agent {
             }
         });
 
-        this.isSimulating = true;
-
         //Gera novas pessoas, e ao mesmo tempo pede aos elevadores que informem quantas tasks têm
         addBehaviour(new TickerBehaviour(this, 1000) {
             @Override
             protected void onTick() {
-                Person person = new Person(nFloors);
-                //System.out.println(person.getOriginalFloor() + " to " + person.getDestinationFloor());
+                //Person person = new Person(nFloors);
+                Person person = new Person(8,5);
 
-                //Manda mensagem a todos os elevator agents
+                //Queries all elevators for their number of tasks.
                 ACLMessage newMsg = new ACLMessage(ACLMessage.QUERY_IF);
                 DFAgentDescription template = new DFAgentDescription();
                 ServiceDescription sd2 = new ServiceDescription();
@@ -124,19 +124,20 @@ public class Simulator extends Agent {
         addBehaviour(new CyclicBehaviour(this) {
             @Override
             public void action() {
-                Person person = new Person(nFloors);
-                AID elevatorAID = Collections.min(elevatorAgentsCurrentCapacity.entrySet(), Map.Entry.comparingByValue()).getKey();
+                if(elevatorAgents.size() > 0 && elevatorAgentsCurrentCapacity.size()>0 && tasksQueue.size()>0){
+                    //Person person = new Person(nFloors);
+                    Person person = tasksQueue.remove(0);
+                    AID elevatorAID = Collections.min(elevatorAgentsCurrentCapacity.entrySet(), Map.Entry.comparingByValue()).getKey();
+                    ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
 
-                ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
-
-                try {
-                    msg.setContentObject(person);
-                } catch (IOException e) {
-                    e.printStackTrace();
+                    try {
+                        msg.setContentObject(person);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    msg.addReceiver(elevatorAID);
+                    send(msg);
                 }
-                msg.addReceiver(elevatorAID);
-
-                send(msg);
             }
 
         });
