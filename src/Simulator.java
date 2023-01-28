@@ -59,6 +59,7 @@ public class Simulator extends Agent {
         }
 
 
+        // ElevatorSearch behaviour
         //Searches and stashes agents of type "Elevator" in a HashMap
         addBehaviour(new TickerBehaviour(this, 1000) {
             @Override
@@ -91,6 +92,7 @@ public class Simulator extends Agent {
             }
         });
 
+        // PeopleSpawner behaviour
         //Generates new peoeple and at the same time asks every elevator the number of tasks that they currently have.
         addBehaviour(new TickerBehaviour(this, timeBetweenPersonSpawm) {
             @Override
@@ -112,7 +114,7 @@ public class Simulator extends Agent {
             }
         });
 
-
+        // NumberOfTasksListener behaviour
         //Always listening for the elevators to update how many tasks they have.
         addBehaviour(new CyclicBehaviour(this) {
             @Override
@@ -131,6 +133,7 @@ public class Simulator extends Agent {
             }
         });
 
+        // TaskSender behaviour
         //Sends tasks to the elevator with the least ammount of tasks.
         addBehaviour(new CyclicBehaviour(this) {
             @Override
@@ -154,7 +157,7 @@ public class Simulator extends Agent {
             }
         });
 
-
+        // StatisticsQuery behaviour
         // Asks each elevator their statistics every half second.
         addBehaviour(new TickerBehaviour(this, 500) {
             @Override
@@ -171,6 +174,7 @@ public class Simulator extends Agent {
             }
         });
 
+        // StatisticsListener behaviour
         //Always listening for the elevators to update their statistics.
         addBehaviour(new CyclicBehaviour(this) {
             @Override
@@ -193,6 +197,7 @@ public class Simulator extends Agent {
             }
         });
 
+        // SimulatorConclusion behaviour
         //Says for the simulation to end, and process statistics
         addBehaviour(new TickerBehaviour(this, timeToSimulate) {
             @Override

@@ -63,6 +63,7 @@ public class Elevator extends Agent {
         fsm.registerTransition(MOVE_PEOPLE_LOGIC, MOVE_ELEVATOR_LOGIC, 0);
         fsm.registerTransition(MOVE_PEOPLE_LOGIC, EMPTY_LOGIC, 1);
 
+
         //Answers with the number of tasks every time hes queried about the number of tasks.
         Behaviour askNumberOfTasks = new Behaviour() {
             public void action() {
