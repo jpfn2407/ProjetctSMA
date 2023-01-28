@@ -16,9 +16,9 @@ import java.util.*;
 public class Simulator extends Agent {
     //Simulator variables. Can change!
     private static int nFloors = 10; // Number of floors in the building
-    private static int nElevators = 1; // Number of elevators to simulate
+    private static int nElevators = 2; // Number of elevators to simulate
     private static int timeToSimulate = 30_000; // Time in mls to simulate. (1s = 1000mls)
-    private static int timeBetweenPersonSpawm = 100; // Time in mls it takes to spawn in a new random person.
+    private static int timeBetweenPersonSpawm = 500; // Time in mls it takes to spawn in a new random person.
 
     //Internal logic variables. Don't change!
     private ArrayList<AID> elevatorAgents = new ArrayList<>(); // Stores all the elevator AIDs here.

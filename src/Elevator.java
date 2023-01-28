@@ -14,7 +14,7 @@ import java.util.ListIterator;
 public class Elevator extends Agent {
     //Elevator variables. Can change!
     private static int maxCapacity = 4; // Number of people the elevators can handle.
-    private static int speed = 10000; // Time in milseconds that it takes for the elevator to change floors.
+    private static int speed = 1000; // Time in milseconds that it takes for the elevator to change floors.
 
     //Strings used for the final state machine.
     private static final String EMPTY_LOGIC = "EMPTY_LOGIC";
@@ -54,7 +54,6 @@ public class Elevator extends Agent {
         //Final state machine states regestry
         fsm.registerFirstState(new whenEmptyLogic(this), EMPTY_LOGIC);
         fsm.registerState(new moveElevatorLogic(this), MOVE_ELEVATOR_LOGIC);
-        //fsm.registerState(new moveElevatorLogic(this, speed), MOVE_ELEVATOR_LOGIC);
         fsm.registerState(new movePeopleLogic(this), MOVE_PEOPLE_LOGIC);
 
         //Final state machine transition orders.
@@ -127,6 +126,7 @@ public class Elevator extends Agent {
             }
         };
 
+
         tbf.wrap(askNumberOfTasks);
         addBehaviour(askNumberOfTasks);
 
@@ -139,9 +139,9 @@ public class Elevator extends Agent {
         tbf.wrap(fsm);
         addBehaviour(fsm);
 
-
     }
 
+    // Function used to shutdown the elevator.
     protected void takeDown() {
         this.tbf.interrupt();
         try {
@@ -152,45 +152,55 @@ public class Elevator extends Agent {
         System.out.println("Elevator agent " + getAID().getName() + " was taken down.");
     }
 
-    private class moveElevatorLogic extends Behaviour {
 
+    // Logic used to move the elevator between floors.
+    private class moveElevatorLogic extends Behaviour {
         private boolean finished = false;
         private int exitValue = 0;
         private long wakeUpTime;
+        private boolean firstPass;
 
         public moveElevatorLogic(Agent a) {
             super(a);
-            this.wakeUpTime = System.currentTimeMillis() + speed;
 
         }
 
         @Override
         public void action() {
+
+            // If this is the first pass, it will define a new waiting time and afirm that it isnt the first pass.
+            if(firstPass){
+                wakeUpTime = System.currentTimeMillis() + speed;
+                firstPass = false;
+            }
+            // Always updating the time.
             long currentTime = System.currentTimeMillis();
 
+            // If time has passed, will enter this condition. At the end, will set "firstPass" again to true, for the next iteration.
+            if(currentTime >= wakeUpTime){
+                if (destinationFloor > currentFloor ) {
+                    currentFloor += 1;
+                    //System.out.println("Current floor " + currentFloor);
+                    //block(speed);
+                    this.exitValue = 1;
+                    finished = true;
+                    firstPass = true;
 
-            while()
+                } else if (destinationFloor < currentFloor ) {
+                    currentFloor -= 1;
+                    //System.out.println("Current floor " + currentFloor);
+                    //block(speed);
+                    this.exitValue = 1;
+                    finished = true;
+                    firstPass = true;
 
-            if (destinationFloor > currentFloor && this.wakeUpTime <= currentTime) {
-                currentFloor += 1;
-                System.out.println("Current floor " + currentFloor);
-                //block(speed);
-                this.exitValue = 1;
-                finished = true;
-
-            } else if (destinationFloor < currentFloor && this.wakeUpTime <= System.currentTimeMillis()) {
-                currentFloor -= 1;
-                System.out.println("Current floor " + currentFloor);
-                //block(speed);
-                this.exitValue = 1;
-                finished = true;
-
-            } else if (destinationFloor == currentFloor && this.wakeUpTime <= System.currentTimeMillis()) {
-                System.out.println("cheguei");
-                this.exitValue = 0;
-                finished = true;
+                } else if (destinationFloor == currentFloor) {
+                    //System.out.println("Reached it's destination");
+                    this.exitValue = 0;
+                    finished = true;
+                    firstPass = true;
+                }
             }
-
         }
 
         @Override
@@ -205,54 +215,8 @@ public class Elevator extends Agent {
         }
     }
 
-/*    private class moveElevatorLogic extends TickerBehaviour{
 
-        private boolean finished = false;
-        private int exitValue = 0;
-
-        public moveElevatorLogic(Agent a, long period) {
-            super(a, period);
-        }
-
-        @Override
-        protected void onTick() {
-            if (destinationFloor > currentFloor) {
-                currentFloor += 1;
-                System.out.println("Current floor " + currentFloor);
-                this.exitValue = 1;
-                this.finished = true;
-
-            } else if (destinationFloor < currentFloor) {
-                currentFloor -= 1;
-                System.out.println("Current floor " + currentFloor);
-                this.exitValue = 1;
-                this.finished = true;
-
-
-            } else if (destinationFloor == currentFloor) {
-                System.out.println("cheguei");
-                this.exitValue = 0;
-                this.finished = true;
-
-            }
-        }
-
-
-
-        @Override
-        public int onEnd() {
-            this.finished = false;
-            return exitValue;
-        }
-
-        @Override
-        public void setFixedPeriod(boolean fixedPeriod) {
-            super.setFixedPeriod(true);
-        }
-    }*/
-
-
-
+    // Logic used when the elevator is empty.
     private class whenEmptyLogic extends Behaviour {
 
         private boolean finished = false;
@@ -269,7 +233,7 @@ public class Elevator extends Agent {
                 stopped = 0;
                 destinationFloor = tasks.get(0).getOriginalFloor();
 
-                System.out.println("Going to " + destinationFloor);
+                //System.out.println("Going to " + destinationFloor);
 
                 this.finished = true;
                 this.exitValue = 0;
@@ -288,6 +252,7 @@ public class Elevator extends Agent {
         }
     }
 
+    // Logic used when stopped at a floor for moving people in and out of the elevator.
     private class movePeopleLogic extends Behaviour {
 
         private boolean finished = false;
@@ -320,9 +285,8 @@ public class Elevator extends Agent {
                 destinationFloor = currentLoad.get(0).getDestinationFloor();
             }
 
-
-            System.out.println("Current load after swaps: " + currentLoad);
-            System.out.println("Going to " + destinationFloor);
+            //System.out.println("Current load after swaps: " + currentLoad);
+            //System.out.println("Going to " + destinationFloor);
 
             this.exitValue = 0;
             //If it's empty, goes to the emptyLogic, if not, will just move floors.
