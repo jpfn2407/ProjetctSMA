@@ -1,8 +1,5 @@
 import jade.core.Agent;
-import jade.core.behaviours.Behaviour;
-import jade.core.behaviours.CyclicBehaviour;
-import jade.core.behaviours.ThreadedBehaviourFactory;
-import jade.core.behaviours.TickerBehaviour;
+import jade.core.behaviours.*;
 import jade.domain.DFService;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
@@ -15,16 +12,29 @@ import java.util.ArrayList;
 import java.util.ListIterator;
 
 public class Elevator extends Agent {
-    private static int maxCapacity = 3; // Number of people the elevators can handle.
-    private static int speed = 1000; // Time in milseconds that it takes for the elevator to change floors.
+    //Elevator variables. Can change!
+    private static int maxCapacity = 4; // Number of people the elevators can handle.
+    private static int speed = 10000; // Time in milseconds that it takes for the elevator to change floors.
+
+    //Strings used for the final state machine.
+    private static final String EMPTY_LOGIC = "EMPTY_LOGIC";
+    private static final String MOVE_ELEVATOR_LOGIC = "MOVE_ELEVATOR_LOGIC";
+    private static final String MOVE_PEOPLE_LOGIC = "MOVE_PEOPLE_LOGIC";
+
+    //For threading agents
     private ThreadedBehaviourFactory tbf = new ThreadedBehaviourFactory();
-    private int currentFloor = 0; // What floor the elevator is currently in.
-    private boolean stopped = true; // If it's stopped in a floor.
+
+    //Internal logic variables. Don't change!
     private ArrayList<Person> currentLoad = new ArrayList<>(); // Current people in the elevator.
     private ArrayList<Person> tasks = new ArrayList<>(); // Stores all the people that want to use the elevator here.
+    private int currentFloor = 0; // What floor the elevator is currently in.
+    private int destinationFloor = 0; // What floor the elevator is currently in.
+    private int stopped = 1; // If it's stopped in a floor. This is an Integer because it's easier to answer the simulator (0 = false; 1 = true)
+
 
     @Override
     protected void setup() {
+        //Setup the elevator.
         System.out.println(getLocalName() + " agent started.");
         DFAgentDescription dfd = new DFAgentDescription();
         dfd.setName(getAID());
@@ -38,6 +48,23 @@ public class Elevator extends Agent {
             fe.printStackTrace();
         }
 
+        //Final state machine for all logic
+        FSMBehaviour fsm = new FSMBehaviour(this);
+
+        //Final state machine states regestry
+        fsm.registerFirstState(new whenEmptyLogic(this), EMPTY_LOGIC);
+        fsm.registerState(new moveElevatorLogic(this), MOVE_ELEVATOR_LOGIC);
+        //fsm.registerState(new moveElevatorLogic(this, speed), MOVE_ELEVATOR_LOGIC);
+        fsm.registerState(new movePeopleLogic(this), MOVE_PEOPLE_LOGIC);
+
+        //Final state machine transition orders.
+        fsm.registerTransition(EMPTY_LOGIC, MOVE_ELEVATOR_LOGIC, 0);
+        fsm.registerTransition(MOVE_ELEVATOR_LOGIC, MOVE_ELEVATOR_LOGIC, 1);
+        fsm.registerTransition(MOVE_ELEVATOR_LOGIC, MOVE_PEOPLE_LOGIC, 0);
+        fsm.registerTransition(MOVE_PEOPLE_LOGIC, MOVE_ELEVATOR_LOGIC, 0);
+        fsm.registerTransition(MOVE_PEOPLE_LOGIC, EMPTY_LOGIC, 1);
+
+        //Answers with the number of tasks every time hes queried about the number of tasks.
         Behaviour askNumberOfTasks = new Behaviour() {
             public void action() {
                 MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.QUERY_IF);
@@ -49,6 +76,9 @@ public class Elevator extends Agent {
                         newMsg.setContent(String.valueOf(tasks.size()) + " n_of_tasks");
                         send(newMsg);
                     }
+                    if (msg.getContent().equals("finish")) {
+                        takeDown();
+                    }
                 }
             }
 
@@ -58,6 +88,7 @@ public class Elevator extends Agent {
             }
         };
 
+        // Accepts a new task and adds it to the global list of tasks.
         Behaviour receiveRequests = new CyclicBehaviour() {
             public void action() {
                 MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.REQUEST);
@@ -71,94 +102,30 @@ public class Elevator extends Agent {
                         System.out.println(tasks);
                     }
                     tasks.add(person);
-                    System.out.println(this + " " + tasks);
+                    //System.out.println(this + " " + tasks);
                 }
             }
-
         };
 
-
-
-        Behaviour moveLogic = new Behaviour() {
+        // Answers the simulator about this elevator current statistics
+        Behaviour informStatistics = new CyclicBehaviour() {
             public void action() {
+                MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.QUERY_REF);
+                ACLMessage msg = receive(mt);
+                if (msg != null) {
+                    if (msg.getContent().equals("statistics")) {
+                        ACLMessage newMsg = new ACLMessage(ACLMessage.QUERY_REF);
+                        newMsg.addReceiver(msg.getSender());
 
-                // If there's no one in the elevator, and there are tasks,
-                // it will move to the floor for the first taks in the list.
-                if (currentLoad.size()==0 && tasks.size() > 0) {
-                    int destinationFloor = tasks.get(0).getOriginalFloor();
-                    System.out.println("Going to " + destinationFloor);
-
-                    // Moves the elevator up or down
-                    //moveToFloor(destinationFloor);
-
-                    addBehaviour(new TickerBehaviour(this.myAgent, speed) {
-                                     @Override
-                                     protected void onTick() {
-                                         if (destinationFloor > currentFloor) {
-
-                                                 currentFloor += 1;
-                                                 System.out.println("Current floor " + currentFloor);
-
-
-                                         } else if (destinationFloor < currentFloor) {
-
-
-                                                 currentFloor -= 1;
-                                                 System.out.println("Current floor " + currentFloor);
-
-                                         }
-                                         else if(destinationFloor == currentFloor){
-                                             done();
-                                         }
-
-                                     }
-                                 }
-                    );
-
-
-                }
-
-
-                // Does the first taks inside the elevator.
-                /*if(!currentLoad.isEmpty()) {
-                    int destinationFloor = currentLoad.get(0).getDestinationFloor();
-                    //moveToFloor(destinationFloor);
-                    if (destinationFloor > currentFloor) {
-                        while (currentFloor != destinationFloor) {
-
-                            //Thread.sleep(speed);
-                            block(speed);
-
-                            currentFloor += 1;
-                            System.out.println("Current floor " + currentFloor);
-                        }
-
-                    } else if (destinationFloor < currentFloor) {
-                        while (currentFloor != destinationFloor) {
-                            block(speed);
-                            currentFloor -= 1;
-                            System.out.println("Current floor " + currentFloor);
-                        }
+                        newMsg.setContent("statistics " +
+                                stopped +
+                                " " + currentLoad.size() +
+                                " " + tasks.size());
+                        send(newMsg);
                     }
-
-                    currentLoad.remove(0);
-                    //Checks if there are more people inside the elevator that will get out in this same floor.
-                    currentLoad.removeIf(currentPerson -> currentPerson.getDestinationFloor() == currentFloor);
-                    System.out.println("Finished unloading. Current load " + currentLoad);
-
-
-                }*/
-
+                }
             }
-
-
-            @Override
-            public boolean done() {
-                return false;
-            }
-
         };
-
 
         tbf.wrap(askNumberOfTasks);
         addBehaviour(askNumberOfTasks);
@@ -166,43 +133,216 @@ public class Elevator extends Agent {
         tbf.wrap(receiveRequests);
         addBehaviour(receiveRequests);
 
-        tbf.wrap(moveLogic);
-        addBehaviour(moveLogic);
+        tbf.wrap(informStatistics);
+        addBehaviour(informStatistics);
 
-    }
+        tbf.wrap(fsm);
+        addBehaviour(fsm);
 
-    private void moveToFloor(int floor){
-        if (floor > currentFloor) {
-            while (currentFloor != floor) {
-                try {
-                    Thread.sleep(speed);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                currentFloor += 1;
-                System.out.println("Current floor " + currentFloor);
-            }
 
-        } else if (floor < currentFloor) {
-            while (currentFloor != floor) {
-                try {
-                    Thread.sleep(speed);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                currentFloor -= 1;
-                System.out.println("Current floor " + currentFloor);
-            }
-        }
     }
 
     protected void takeDown() {
+        this.tbf.interrupt();
         try {
             DFService.deregister(this);
         } catch (FIPAException fe) {
-            fe.printStackTrace();
+            //fe.printStackTrace();
+        }
+        System.out.println("Elevator agent " + getAID().getName() + " was taken down.");
+    }
+
+    private class moveElevatorLogic extends Behaviour {
+
+        private boolean finished = false;
+        private int exitValue = 0;
+        private long wakeUpTime;
+
+        public moveElevatorLogic(Agent a) {
+            super(a);
+            this.wakeUpTime = System.currentTimeMillis() + speed;
+
         }
 
-        System.out.println("Elevator agent " + getAID().getName() + " was taken down.");
+        @Override
+        public void action() {
+            long currentTime = System.currentTimeMillis();
+
+
+            while()
+
+            if (destinationFloor > currentFloor && this.wakeUpTime <= currentTime) {
+                currentFloor += 1;
+                System.out.println("Current floor " + currentFloor);
+                //block(speed);
+                this.exitValue = 1;
+                finished = true;
+
+            } else if (destinationFloor < currentFloor && this.wakeUpTime <= System.currentTimeMillis()) {
+                currentFloor -= 1;
+                System.out.println("Current floor " + currentFloor);
+                //block(speed);
+                this.exitValue = 1;
+                finished = true;
+
+            } else if (destinationFloor == currentFloor && this.wakeUpTime <= System.currentTimeMillis()) {
+                System.out.println("cheguei");
+                this.exitValue = 0;
+                finished = true;
+            }
+
+        }
+
+        @Override
+        public boolean done() {
+            return finished;
+        }
+
+        @Override
+        public int onEnd() {
+            finished = false;
+            return exitValue;
+        }
+    }
+
+/*    private class moveElevatorLogic extends TickerBehaviour{
+
+        private boolean finished = false;
+        private int exitValue = 0;
+
+        public moveElevatorLogic(Agent a, long period) {
+            super(a, period);
+        }
+
+        @Override
+        protected void onTick() {
+            if (destinationFloor > currentFloor) {
+                currentFloor += 1;
+                System.out.println("Current floor " + currentFloor);
+                this.exitValue = 1;
+                this.finished = true;
+
+            } else if (destinationFloor < currentFloor) {
+                currentFloor -= 1;
+                System.out.println("Current floor " + currentFloor);
+                this.exitValue = 1;
+                this.finished = true;
+
+
+            } else if (destinationFloor == currentFloor) {
+                System.out.println("cheguei");
+                this.exitValue = 0;
+                this.finished = true;
+
+            }
+        }
+
+
+
+        @Override
+        public int onEnd() {
+            this.finished = false;
+            return exitValue;
+        }
+
+        @Override
+        public void setFixedPeriod(boolean fixedPeriod) {
+            super.setFixedPeriod(true);
+        }
+    }*/
+
+
+
+    private class whenEmptyLogic extends Behaviour {
+
+        private boolean finished = false;
+        private int exitValue = 0;
+
+        public whenEmptyLogic(Agent a) {
+            super(a);
+        }
+
+        @Override
+        public void action() {
+            stopped = 1;
+            if (currentLoad.size() == 0 && tasks.size() > 0) {
+                stopped = 0;
+                destinationFloor = tasks.get(0).getOriginalFloor();
+
+                System.out.println("Going to " + destinationFloor);
+
+                this.finished = true;
+                this.exitValue = 0;
+            }
+        }
+
+        @Override
+        public boolean done() {
+            return finished;
+        }
+
+        @Override
+        public int onEnd() {
+            finished = false;
+            return exitValue;
+        }
+    }
+
+    private class movePeopleLogic extends Behaviour {
+
+        private boolean finished = false;
+        private int exitValue = 0;
+
+        public movePeopleLogic(Agent a) {
+            super(a);
+        }
+
+        @Override
+        public void action() {
+            //System.out.println("Current load: " + currentLoad);
+            //Gets the max ammount of people in that same floor
+            ListIterator<Person> iter = tasks.listIterator();
+            while(iter.hasNext()){
+                Person person = iter.next();
+                if(currentLoad.size() == maxCapacity) break;
+                else if(person.getOriginalFloor() == currentFloor){
+                    currentLoad.add(person);
+                    iter.remove();
+                }
+            }
+
+            //Checks if anyone wants to get out in that floor.
+            if (!currentLoad.isEmpty()){
+                currentLoad.removeIf(person -> person.getDestinationFloor() == currentFloor);
+            }
+            //If theres still people inside after the removel, will get the destiation floor of the first person in the queue.
+            if (!currentLoad.isEmpty()){
+                destinationFloor = currentLoad.get(0).getDestinationFloor();
+            }
+
+
+            System.out.println("Current load after swaps: " + currentLoad);
+            System.out.println("Going to " + destinationFloor);
+
+            this.exitValue = 0;
+            //If it's empty, goes to the emptyLogic, if not, will just move floors.
+            if (currentLoad.isEmpty()) {
+                this.exitValue = 1;
+            }
+
+            this.finished = true;
+
+        }
+
+        @Override
+        public boolean done() {
+            return finished;
+        }
+
+        @Override
+        public int onEnd() {
+            finished = false;
+            return exitValue;
+        }
     }
 }
